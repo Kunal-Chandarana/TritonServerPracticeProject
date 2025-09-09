@@ -1,0 +1,152 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: triton-inference-server
+  namespace: triton-ml-platform
+spec:
+  replicas: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 2
+  selector:
+    matchLabels:
+      app: triton-ml-platform
+  template:
+    metadata:
+      labels:
+        app: triton-ml-platform
+        version: v2.1.0
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8002"
+        prometheus.io/path: "/metrics"
+        # Force pod restart on config changes
+        configmap/checksum: "placeholder"
+    spec:
+      serviceAccountName: triton-service-account
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+      containers:
+      - name: triton-inference-server
+        image: tritonserver:latest
+        args:
+        - tritonserver
+        - --model-repository=/models
+        - --model-control-mode=explicit
+        - --log-verbose=1
+        - --log-info=true
+        - --log-warn=true
+        - --log-error=true
+        - --allow-metrics=true
+        - --metrics-port=8002
+        - --exit-timeout-secs=30
+        - --repository-poll-secs=0
+        - --model-load-thread-count=4
+        - --grpc-keepalive-time=30000
+        - --grpc-keepalive-timeout=5000
+        - --grpc-keepalive-permit-without-calls=true
+        - --backend-directory=/opt/tritonserver/backends
+        - --backend-config=python,shm-default-byte-size=16777216
+        
+        ports:
+        - name: http
+          containerPort: 8000
+          protocol: TCP
+        - name: grpc
+          containerPort: 8001
+          protocol: TCP
+        - name: metrics
+          containerPort: 8002
+          protocol: TCP
+        
+        resources:
+          requests:
+            memory: "8Gi"
+            cpu: "4"
+            nvidia.com/gpu: 1
+          limits:
+            memory: "16Gi"
+            cpu: "8"
+            nvidia.com/gpu: 1
+        
+        livenessProbe:
+          httpGet:
+            path: /v2/health/live
+            port: 8000
+          initialDelaySeconds: 60
+          periodSeconds: 30
+          timeoutSeconds: 10
+          failureThreshold: 3
+        
+        readinessProbe:
+          httpGet:
+            path: /v2/health/ready
+            port: 8000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        
+        startupProbe:
+          httpGet:
+            path: /v2/health/ready
+            port: 8000
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 30  # Allow up to 5 minutes for startup
+        
+        env:
+        - name: CUDA_VISIBLE_DEVICES
+          value: "0"
+        - name: TRITON_SERVER_CPU_ONLY
+          value: "0"
+        - name: PYTHONPATH
+          value: "/models:/opt/tritonserver/python"
+        
+        volumeMounts:
+        - name: model-repository
+          mountPath: /models
+          readOnly: true
+        - name: cache-volume
+          mountPath: /tmp
+        - name: shared-memory
+          mountPath: /dev/shm
+      
+      volumes:
+      - name: model-repository
+        configMap:
+          name: triton-models-config
+      - name: cache-volume
+        emptyDir:
+          sizeLimit: 2Gi
+      - name: shared-memory
+        emptyDir:
+          medium: Memory
+          sizeLimit: 1Gi
+      
+      nodeSelector:
+        accelerator: nvidia-tesla-v100
+      
+      tolerations:
+      - key: nvidia.com/gpu
+        operator: Exists
+        effect: NoSchedule
+      
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - triton-ml-platform
+              topologyKey: kubernetes.io/hostname

@@ -1,0 +1,24 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Base resources for Triton ML Platform
+resources:
+  - namespace.yaml
+  - deployment.yaml
+  - service.yaml
+  - configmap.yaml
+  - hpa.yaml
+  - pdb.yaml
+  - servicemonitor.yaml
+
+# Common labels applied to all resources
+commonLabels:
+  app: triton-ml-platform
+  version: v2.1.0
+  component: inference-server
+
+# Image configuration
+images:
+  - name: tritonserver
+    newName: nvcr.io/nvidia/tritonserver
+    newTag: "25.08-py3"

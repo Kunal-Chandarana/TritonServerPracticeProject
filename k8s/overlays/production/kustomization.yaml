@@ -1,0 +1,51 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Production overlay configuration
+namespace: triton-ml-platform
+
+# Base configuration
+resources:
+  - ../../base
+
+# Production-specific patches
+patchesStrategicMerge:
+  - deployment-patch.yaml
+  - hpa-patch.yaml
+
+# Production environment variables
+configMapGenerator:
+  - name: triton-models-config
+    files:
+      - models/content-classifier/config.pbtxt
+      - models/safety-detector/config.pbtxt
+      - models/ocr-engine/config.pbtxt
+      - models/ensemble/config.pbtxt
+      - models/moderation-decision-logic/config.pbtxt
+    options:
+      disableNameSuffixHash: true
+
+# Production secrets
+secretGenerator:
+  - name: triton-secrets
+    literals:
+      - model-repository-token=PLACEHOLDER
+      - monitoring-token=PLACEHOLDER
+    options:
+      disableNameSuffixHash: true
+
+# Production-specific labels
+commonLabels:
+  environment: production
+  tier: inference
+  
+# Production images
+images:
+  - name: tritonserver
+    newName: nvcr.io/nvidia/tritonserver
+    newTag: "25.08-py3"
+
+# Replica count for production
+replicas:
+  - name: triton-inference-server
+    count: 5

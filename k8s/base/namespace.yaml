@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: triton-ml-platform
+  labels:
+    name: triton-ml-platform
+    environment: production
+    monitoring: enabled
+    istio-injection: enabled

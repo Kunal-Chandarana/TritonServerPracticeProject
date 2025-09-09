@@ -1,0 +1,196 @@
+# Content Moderation Ensemble - Production Pipeline
+name: "content-moderation-ensemble"
+platform: "ensemble"
+max_batch_size: 16
+
+input [
+  {
+    name: "input_image"
+    data_type: TYPE_UINT8
+    dims: [ -1, -1, 3 ]  # Variable size input image
+  }
+]
+
+output [
+  {
+    name: "moderation_decision"
+    data_type: TYPE_STRING
+    dims: [ 1 ]  # APPROVED, REJECTED, REVIEW_REQUIRED
+  },
+  {
+    name: "confidence_score"
+    data_type: TYPE_FP32
+    dims: [ 1 ]  # Overall confidence (0-1)
+  },
+  {
+    name: "content_category"
+    data_type: TYPE_STRING
+    dims: [ 1 ]  # From content classifier
+  },
+  {
+    name: "safety_assessment"
+    data_type: TYPE_STRING
+    dims: [ 1 ]  # From safety detector
+  },
+  {
+    name: "extracted_text"
+    data_type: TYPE_STRING
+    dims: [ -1 ]  # From OCR engine
+  },
+  {
+    name: "processing_metadata"
+    data_type: TYPE_STRING
+    dims: [ 1 ]  # JSON with detailed results
+  }
+]
+
+# Ensemble steps - parallel execution for efficiency
+ensemble_scheduling {
+  step [
+    {
+      model_name: "content-classifier"
+      model_version: -1  # Use latest available
+      input_map {
+        key: "input_image"
+        value: "input_image"
+      }
+      output_map {
+        key: "classification_scores"
+        value: "content_scores"
+      }
+      output_map {
+        key: "predicted_class"
+        value: "content_class"
+      }
+      output_map {
+        key: "confidence_score"
+        value: "content_confidence"
+      }
+    },
+    {
+      model_name: "safety-detector"
+      model_version: -1
+      input_map {
+        key: "input_image"
+        value: "input_image"
+      }
+      output_map {
+        key: "safety_scores"
+        value: "safety_scores"
+      }
+      output_map {
+        key: "is_safe"
+        value: "is_safe"
+      }
+      output_map {
+        key: "risk_level"
+        value: "risk_level"
+      }
+    },
+    {
+      model_name: "ocr-engine"
+      model_version: -1
+      input_map {
+        key: "input_image"
+        value: "input_image"
+      }
+      output_map {
+        key: "extracted_text"
+        value: "ocr_text"
+      }
+      output_map {
+        key: "text_confidence"
+        value: "text_confidence"
+      }
+      output_map {
+        key: "language_detected"
+        value: "detected_language"
+      }
+    },
+    {
+      # Decision logic model (Python backend)
+      model_name: "moderation-decision-logic"
+      model_version: -1
+      input_map {
+        key: "content_scores"
+        value: "content_scores"
+      }
+      input_map {
+        key: "content_class"
+        value: "content_class"
+      }
+      input_map {
+        key: "content_confidence"
+        value: "content_confidence"
+      }
+      input_map {
+        key: "safety_scores"
+        value: "safety_scores"
+      }
+      input_map {
+        key: "is_safe"
+        value: "is_safe"
+      }
+      input_map {
+        key: "risk_level"
+        value: "risk_level"
+      }
+      input_map {
+        key: "ocr_text"
+        value: "ocr_text"
+      }
+      input_map {
+        key: "text_confidence"
+        value: "text_confidence"
+      }
+      input_map {
+        key: "detected_language"
+        value: "detected_language"
+      }
+      output_map {
+        key: "moderation_decision"
+        value: "moderation_decision"
+      }
+      output_map {
+        key: "confidence_score"
+        value: "confidence_score"
+      }
+      output_map {
+        key: "content_category"
+        value: "content_category"
+      }
+      output_map {
+        key: "safety_assessment"
+        value: "safety_assessment"
+      }
+      output_map {
+        key: "extracted_text"
+        value: "extracted_text"
+      }
+      output_map {
+        key: "processing_metadata"
+        value: "processing_metadata"
+      }
+    }
+  ]
+}
+
+# Model metadata for the ensemble
+parameters [
+  {
+    key: "ensemble_type"
+    value: { string_value: "content_moderation_pipeline" }
+  },
+  {
+    key: "pipeline_version"
+    value: { string_value: "v2.1.0" }
+  },
+  {
+    key: "models_included"
+    value: { string_value: "content-classifier,safety-detector,ocr-engine,decision-logic" }
+  },
+  {
+    key: "sla_target_p95"
+    value: { string_value: "150ms" }
+  }
+]

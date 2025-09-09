@@ -1,0 +1,110 @@
+# Content Safety Detection Model - Production Configuration
+name: "safety-detector"
+platform: "onnxruntime_onnx"
+max_batch_size: 16
+
+input [
+  {
+    name: "input_image"
+    data_type: TYPE_UINT8
+    dims: [ 3, 256, 256 ]  # Slightly larger input for better safety detection
+  }
+]
+
+output [
+  {
+    name: "safety_scores"
+    data_type: TYPE_FP32
+    dims: [ 5 ]  # [safe, nsfw, violence, hate, drugs]
+  },
+  {
+    name: "is_safe"
+    data_type: TYPE_BOOL
+    dims: [ 1 ]
+  },
+  {
+    name: "risk_level"
+    data_type: TYPE_STRING
+    dims: [ 1 ]  # LOW, MEDIUM, HIGH
+  }
+]
+
+# Optimized for safety-critical performance
+dynamic_batching {
+  max_queue_delay_microseconds: 200  # Lower latency for safety
+  preferred_batch_size: [ 4, 8, 16 ]
+  preserve_ordering: true  # Important for audit trail
+}
+
+# High availability for safety-critical service
+instance_group [
+  {
+    count: 6  # More instances for safety-critical workload
+    kind: KIND_GPU
+    gpus: [ 0 ]
+  }
+]
+
+# Comprehensive warmup for safety model
+model_warmup [
+  {
+    name: "safety_warmup_batch_1"
+    batch_size: 1
+    inputs {
+      key: "input_image"
+      value: {
+        data_type: TYPE_UINT8
+        dims: [ 3, 256, 256 ]
+        zero_data: true
+      }
+    }
+  },
+  {
+    name: "safety_warmup_batch_8"
+    batch_size: 8
+    inputs {
+      key: "input_image"
+      value: {
+        data_type: TYPE_UINT8
+        dims: [ 3, 256, 256 ]
+        zero_data: true
+      }
+    }
+  }
+]
+
+# High precision for safety detection
+optimization {
+  execution_accelerators {
+    gpu_execution_accelerator : [ {
+      name : "tensorrt"
+      parameters { key: "precision_mode" value: "FP32" }  # Higher precision for safety
+      parameters { key: "max_workspace_size_bytes" value: "2147483648" }
+    }]
+  }
+}
+
+# No caching for safety - always fresh analysis
+response_cache {
+  enable: false
+}
+
+# Model metadata
+parameters [
+  {
+    key: "model_type"
+    value: { string_value: "content_safety" }
+  },
+  {
+    key: "model_version"
+    value: { string_value: "safety_classifier_v3" }
+  },
+  {
+    key: "sensitivity_level"
+    value: { string_value: "high" }
+  },
+  {
+    key: "false_positive_rate"
+    value: { string_value: "2.1%" }
+  }
+]

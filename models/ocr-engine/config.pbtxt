@@ -1,0 +1,98 @@
+# OCR Text Extraction Model - Production Configuration
+name: "ocr-engine"
+platform: "python"  # Using Python backend for complex OCR logic
+max_batch_size: 8
+
+input [
+  {
+    name: "input_image"
+    data_type: TYPE_UINT8
+    dims: [ -1, -1, 3 ]  # Variable size images
+  }
+]
+
+output [
+  {
+    name: "extracted_text"
+    data_type: TYPE_STRING
+    dims: [ -1 ]  # Variable length text
+  },
+  {
+    name: "text_confidence"
+    data_type: TYPE_FP32
+    dims: [ -1 ]  # Confidence per text region
+  },
+  {
+    name: "bounding_boxes"
+    data_type: TYPE_FP32
+    dims: [ -1, 4 ]  # [x, y, width, height] per text region
+  },
+  {
+    name: "language_detected"
+    data_type: TYPE_STRING
+    dims: [ 1 ]
+  }
+]
+
+# Moderate batching for OCR (text processing can be variable)
+dynamic_batching {
+  max_queue_delay_microseconds: 1000  # Higher tolerance for OCR
+  preferred_batch_size: [ 2, 4, 8 ]
+  preserve_ordering: true  # Important for text sequence
+}
+
+# CPU instances for OCR processing
+instance_group [
+  {
+    count: 3
+    kind: KIND_CPU
+  }
+]
+
+# OCR warmup with different image sizes
+model_warmup [
+  {
+    name: "ocr_warmup_small"
+    batch_size: 1
+    inputs {
+      key: "input_image"
+      value: {
+        data_type: TYPE_UINT8
+        dims: [ 300, 400, 3 ]
+        zero_data: true
+      }
+    }
+  },
+  {
+    name: "ocr_warmup_large"
+    batch_size: 1
+    inputs {
+      key: "input_image"
+      value: {
+        data_type: TYPE_UINT8
+        dims: [ 800, 1200, 3 ]
+        zero_data: true
+      }
+    }
+  }
+]
+
+# Model metadata
+parameters [
+  {
+    key: "model_type"
+    value: { string_value: "optical_character_recognition" }
+  },
+  {
+    key: "ocr_engine"
+    value: { string_value: "tesseract_5.0" }
+  },
+  {
+    key: "supported_languages"
+    value: { string_value: "eng,spa,fra,deu,rus,chi" }
+  },
+  {
+    key: "accuracy"
+    value: { string_value: "94.3%" }
+  }
+]

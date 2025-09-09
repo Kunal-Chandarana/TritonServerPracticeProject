@@ -1,0 +1,116 @@
+# Moderation Decision Logic - Production Configuration
+name: "moderation-decision-logic"
+platform: "python"
+max_batch_size: 32
+
+input [
+  {
+    name: "content_scores"
+    data_type: TYPE_FP32
+    dims: [ 1000 ]
+  },
+  {
+    name: "content_class"
+    data_type: TYPE_INT64
+    dims: [ 1 ]
+  },
+  {
+    name: "content_confidence"
+    data_type: TYPE_FP32
+    dims: [ 1 ]
+  },
+  {
+    name: "safety_scores"
+    data_type: TYPE_FP32
+    dims: [ 5 ]
+  },
+  {
+    name: "is_safe"
+    data_type: TYPE_BOOL
+    dims: [ 1 ]
+  },
+  {
+    name: "risk_level"
+    data_type: TYPE_STRING
+    dims: [ 1 ]
+  },
+  {
+    name: "ocr_text"
+    data_type: TYPE_STRING
+    dims: [ -1 ]
+  },
+  {
+    name: "text_confidence"
+    data_type: TYPE_FP32
+    dims: [ -1 ]
+  },
+  {
+    name: "detected_language"
+    data_type: TYPE_STRING
+    dims: [ 1 ]
+  }
+]
+
+output [
+  {
+    name: "moderation_decision"
+    data_type: TYPE_STRING
+    dims: [ 1 ]
+  },
+  {
+    name: "confidence_score"
+    data_type: TYPE_FP32
+    dims: [ 1 ]
+  },
+  {
+    name: "content_category"
+    data_type: TYPE_STRING
+    dims: [ 1 ]
+  },
+  {
+    name: "safety_assessment"
+    data_type: TYPE_STRING
+    dims: [ 1 ]
+  },
+  {
+    name: "extracted_text"
+    data_type: TYPE_STRING
+    dims: [ -1 ]
+  },
+  {
+    name: "processing_metadata"
+    data_type: TYPE_STRING
+    dims: [ 1 ]
+  }
+]
+
+# High throughput for decision logic
+dynamic_batching {
+  max_queue_delay_microseconds: 100
+  preferred_batch_size: [ 8, 16, 32 ]
+  preserve_ordering: false
+}
+
+# Multiple CPU instances for decision logic
+instance_group [
+  {
+    count: 8
+    kind: KIND_CPU
+  }
+]
+
+# Model metadata
+parameters [
+  {
+    key: "model_type"
+    value: { string_value: "business_logic" }
+  },
+  {
+    key: "decision_algorithm"
+    value: { string_value: "weighted_ensemble_v2" }
+  },
+  {
+    key: "safety_threshold"
+    value: { string_value: "0.85" }
+  }
+]

@@ -1,0 +1,105 @@
+# Content Classification Model - Production Configuration
+name: "content-classifier"
+platform: "onnxruntime_onnx"
+max_batch_size: 32
+
+# Model versioning for A/B testing
+version_policy: { 
+  specific: { 
+    versions: [1, 2]  # Support both v1 and v2 for A/B testing
+  } 
+}
+
+input [
+  {
+    name: "input_image"
+    data_type: TYPE_UINT8
+    dims: [ 3, 224, 224 ]  # RGB image 224x224
+  }
+]
+
+output [
+  {
+    name: "classification_scores"
+    data_type: TYPE_FP32
+    dims: [ 1000 ]  # ImageNet classes
+  },
+  {
+    name: "predicted_class"
+    data_type: TYPE_INT64
+    dims: [ 1 ]
+  },
+  {
+    name: "confidence_score"
+    data_type: TYPE_FP32
+    dims: [ 1 ]
+  }
+]
+
+# Production Performance Optimization
+dynamic_batching {
+  max_queue_delay_microseconds: 500
+  preferred_batch_size: [ 8, 16, 32 ]
+  preserve_ordering: false
+}
+
+# Multiple instances for high throughput
+instance_group [
+  {
+    count: 4
+    kind: KIND_GPU
+    gpus: [ 0 ]
+  }
+]
+
+# Model warmup to avoid cold starts
+model_warmup [
+  {
+    name: "classification_warmup"
+    batch_size: 8
+    inputs {
+      key: "input_image"
+      value: {
+        data_type: TYPE_UINT8
+        dims: [ 3, 224, 224 ]
+        zero_data: true
+      }
+    }
+  }
+]
+
+# Production optimization settings
+optimization {
+  execution_accelerators {
+    gpu_execution_accelerator : [ {
+      name : "tensorrt"
+      parameters { key: "precision_mode" value: "FP16" }
+      parameters { key: "max_workspace_size_bytes" value: "1073741824" }
+    }]
+  }
+}
+
+# Response caching for identical requests
+response_cache {
+  enable: true
+}
+
+# Model metadata for monitoring
+parameters [
+  {
+    key: "model_type"
+    value: { string_value: "image_classification" }
+  },
+  {
+    key: "model_version"
+    value: { string_value: "resnet50_v1" }
+  },
+  {
+    key: "training_dataset"
+    value: { string_value: "imagenet_2012" }
+  },
+  {
+    key: "accuracy"
+    value: { string_value: "76.2%" }
+  }
+]
