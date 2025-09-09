@@ -1,0 +1,411 @@
+# Production ML Platform - Git Ignore Rules
+
+# ========================================
+# Python
+# ========================================
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# PyInstaller
+*.manifest
+*.spec
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+cover/
+
+# Virtual environments
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+.venv/
+
+# IDEs and editors
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# pyenv
+.python-version
+
+# pipenv
+Pipfile.lock
+
+# poetry
+poetry.lock
+
+# ========================================
+# Node.js / React Frontend
+# ========================================
+# Dependencies
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Production builds
+build/
+dist/
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# Coverage directory used by tools like istanbul
+coverage/
+*.lcov
+
+# nyc test coverage
+.nyc_output
+
+# ESLint cache
+.eslintcache
+
+# Optional npm cache directory
+.npm
+
+# Optional REPL history
+.node_repl_history
+
+# Output of 'npm pack'
+*.tgz
+
+# Yarn Integrity file
+.yarn-integrity
+
+# parcel-bundler cache (https://parceljs.org/)
+.cache
+.parcel-cache
+
+# Next.js build output
+.next
+
+# Nuxt.js build / generate output
+.nuxt
+dist
+
+# Storybook build outputs
+.out
+.storybook-out
+
+# ========================================
+# Docker
+# ========================================
+# Docker volumes and data
+docker-compose.override.yml
+.dockerignore
+
+# ========================================
+# Machine Learning / Triton
+# ========================================
+# Model files (large binary files)
+*.onnx
+*.pb
+*.pth
+*.pt
+*.h5
+*.pkl
+*.joblib
+*.model
+
+# Model artifacts and checkpoints
+checkpoints/
+saved_models/
+model_artifacts/
+*.ckpt
+*.weights
+
+# Triton model repository cache
+model_repository_cache/
+
+# Data files
+*.csv
+*.json
+*.parquet
+*.h5
+*.hdf5
+data/
+datasets/
+
+# Logs and monitoring
+*.log
+logs/
+mlruns/
+runs/
+
+# ========================================
+# Infrastructure / DevOps
+# ========================================
+# Terraform
+*.tfstate
+*.tfstate.*
+.terraform/
+.terraform.lock.hcl
+terraform.tfvars
+*.auto.tfvars
+
+# Kubernetes secrets
+secrets/
+*.secret.yaml
+*.secret.yml
+
+# Helm
+charts/*.tgz
+
+# ========================================
+# Environment and Configuration
+# ========================================
+# Environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env.*.local
+
+# Configuration files with sensitive data
+config.local.*
+settings.local.*
+*.private.json
+*.private.yaml
+*.private.yml
+
+# API keys and credentials
+credentials.json
+service-account.json
+*.pem
+*.key
+*.crt
+*.p12
+
+# ========================================
+# Temporary and Cache Files
+# ========================================
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.temp
+*.swp
+*.swo
+
+# Cache directories
+.cache/
+cache/
+.sass-cache/
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# ========================================
+# Monitoring and Metrics
+# ========================================
+# Prometheus data
+prometheus_data/
+
+# Grafana data
+grafana_data/
+
+# Application metrics
+metrics/
+*.metrics
+
+# ========================================
+# Development and Testing
+# ========================================
+# Test artifacts
+test-results/
+test_results/
+screenshots/
+videos/
+
+# Local development databases
+*.db
+*.sqlite
+*.sqlite3
+
+# Local development uploads
+uploads/
+media/
+
+# ========================================
+# CI/CD
+# ========================================
+# GitHub Actions artifacts
+.github/workflows/*.log
+
+# Build artifacts
+target/
+out/
+
+# ========================================
+# Documentation
+# ========================================
+# Generated documentation
+docs/_build/
+site/
+
+# ========================================
+# Custom Project Ignores
+# ========================================
+# Demo test images
+/tmp/
+*.jpg
+*.jpeg
+*.png
+*.gif
+*.bmp
+*.tiff
+*.webp
+
+# Local model testing
+model_test/
+inference_test/
+
+# Performance benchmarks
+benchmarks/
+perf_results/
+
+# Local configuration overrides
+docker-compose.local.yml
+kubernetes.local/
+
+# Development scripts
+dev_scripts/
+local_dev/
+
+# Backup files
+*.bak
+*.backup
+backup_*
+
+# ========================================
+# IDE Specific
+# ========================================
+# PyCharm
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# VS Code
+.vscode/
+*.code-workspace
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# Vim
+*.vim
+.vimrc.local
+
+# Emacs
+*~
+\#*\#
+/.emacs.desktop
+/.emacs.desktop.lock
+*.elc
+auto-save-list
+tramp
+.\#*
+
+# ========================================
+# Platform Specific
+# ========================================
+# macOS
+.AppleDouble
+.LSOverride
+Icon
+._*
+.DocumentRevisions-V100
+.fseventsd
+.Spotlight-V100
+.TemporaryItems
+.Trashes
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+.AppleDB
+.AppleDesktop
+Network Trash Folder
+Temporary Items
+.apdisk
+
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+*.stackdump
+[Dd]esktop.ini
+$RECYCLE.BIN/
+*.cab
+*.msi
+*.msix
+*.msm
+*.msp
+*.lnk
+
+# Linux
+*~
+.fuse_hidden*
+.directory
+.Trash-*
+.nfs*
