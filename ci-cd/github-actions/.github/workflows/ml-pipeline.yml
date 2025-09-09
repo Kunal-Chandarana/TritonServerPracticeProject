@@ -1,0 +1,317 @@
+name: Production ML Pipeline - Triton Deployment
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - 'models/**'
+      - 'k8s/**'
+      - 'ci-cd/**'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'models/**'
+      - 'k8s/**'
+
+env:
+  REGISTRY: nvcr.io
+  IMAGE_NAME: triton-ml-platform
+  KUBE_NAMESPACE: triton-ml-platform
+
+jobs:
+  # ===================================
+  # MODEL VALIDATION & TESTING
+  # ===================================
+  model-validation:
+    name: Validate Model Configurations
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Setup Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+    
+    - name: Install dependencies
+      run: |
+        pip install tritonclient[all] numpy pytest
+        
+    - name: Validate model configurations
+      run: |
+        echo "🔍 Validating model configurations..."
+        python ci-cd/scripts/validate-models.py
+        
+    - name: Test model compatibility
+      run: |
+        echo "🧪 Testing model compatibility..."
+        python ci-cd/scripts/test-model-compatibility.py
+        
+    - name: Generate model documentation
+      run: |
+        echo "📝 Generating model documentation..."
+        python ci-cd/scripts/generate-model-docs.py
+
+  # ===================================
+  # SECURITY SCANNING
+  # ===================================
+  security-scan:
+    name: Security & Compliance Scan
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Run Trivy vulnerability scanner
+      uses: aquasecurity/trivy-action@master
+      with:
+        scan-type: 'fs'
+        scan-ref: '.'
+        format: 'sarif'
+        output: 'trivy-results.sarif'
+        
+    - name: Upload Trivy scan results
+      uses: github/codeql-action/upload-sarif@v2
+      with:
+        sarif_file: 'trivy-results.sarif'
+        
+    - name: Kubernetes security scan
+      run: |
+        echo "🔒 Scanning Kubernetes manifests..."
+        docker run --rm -v $(pwd):/project \
+          aquasec/kube-bench:latest \
+          --config-dir /project/k8s \
+          --check 1.6.1
+
+  # ===================================
+  # PERFORMANCE TESTING
+  # ===================================
+  performance-test:
+    name: Performance & Load Testing
+    runs-on: ubuntu-latest
+    needs: [model-validation]
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Docker Buildx
+      uses: docker/setup-buildx-action@v3
+      
+    - name: Start Triton test instance
+      run: |
+        echo "🚀 Starting Triton for performance testing..."
+        docker run -d --name triton-test \
+          -p 8000:8000 -p 8001:8001 -p 8002:8002 \
+          -v $(pwd)/models:/models \
+          nvcr.io/nvidia/tritonserver:25.08-py3 \
+          tritonserver --model-repository=/models --model-control-mode=explicit
+          
+        # Wait for server to be ready
+        timeout 60 bash -c 'until curl -f http://localhost:8000/v2/health/ready; do sleep 2; done'
+        
+    - name: Load test models
+      run: |
+        echo "📊 Loading models for testing..."
+        curl -X POST localhost:8000/v2/repository/models/content-classifier/load
+        curl -X POST localhost:8000/v2/repository/models/safety-detector/load
+        curl -X POST localhost:8000/v2/repository/models/content-moderation-ensemble/load
+        
+    - name: Run performance benchmarks
+      run: |
+        echo "⚡ Running performance benchmarks..."
+        pip install tritonclient[all]
+        python ci-cd/scripts/performance-test.py \
+          --url localhost:8000 \
+          --model-name content-moderation-ensemble \
+          --concurrency 10 \
+          --requests 1000 \
+          --report-file performance-report.json
+          
+    - name: Upload performance results
+      uses: actions/upload-artifact@v3
+      with:
+        name: performance-report
+        path: performance-report.json
+
+  # ===================================
+  # BUILD & PUSH (Production Only)
+  # ===================================
+  build-and-push:
+    name: Build & Push Production Images
+    runs-on: ubuntu-latest
+    needs: [model-validation, security-scan, performance-test]
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Docker Buildx
+      uses: docker/setup-buildx-action@v3
+      
+    - name: Login to NVIDIA NGC
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ env.REGISTRY }}
+        username: ${{ secrets.NGC_USERNAME }}
+        password: ${{ secrets.NGC_PASSWORD }}
+        
+    - name: Build production model bundle
+      run: |
+        echo "📦 Building production model bundle..."
+        docker build -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }} \
+          -f ci-cd/docker/Dockerfile.production .
+          
+    - name: Push to registry
+      run: |
+        echo "🚀 Pushing to production registry..."
+        docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+        docker tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }} \
+          ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+        docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+
+  # ===================================
+  # STAGING DEPLOYMENT
+  # ===================================
+  deploy-staging:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    needs: [build-and-push]
+    if: github.ref == 'refs/heads/main'
+    environment: staging
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup kubectl
+      uses: azure/setup-kubectl@v3
+      with:
+        version: 'v1.28.0'
+        
+    - name: Configure kubeconfig
+      run: |
+        echo "${{ secrets.KUBE_CONFIG_STAGING }}" | base64 -d > kubeconfig
+        export KUBECONFIG=kubeconfig
+        
+    - name: Deploy to staging
+      run: |
+        echo "🚀 Deploying to staging environment..."
+        kubectl apply -k k8s/overlays/staging
+        kubectl set image deployment/triton-inference-server \
+          triton-inference-server=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }} \
+          -n ${{ env.KUBE_NAMESPACE }}
+          
+    - name: Wait for rollout
+      run: |
+        kubectl rollout status deployment/triton-inference-server \
+          -n ${{ env.KUBE_NAMESPACE }} --timeout=300s
+          
+    - name: Run smoke tests
+      run: |
+        echo "🧪 Running staging smoke tests..."
+        python ci-cd/scripts/smoke-tests.py --env staging
+        
+    - name: Validate staging deployment
+      run: |
+        echo "✅ Validating staging deployment..."
+        kubectl get pods -n ${{ env.KUBE_NAMESPACE }}
+        kubectl get svc -n ${{ env.KUBE_NAMESPACE }}
+
+  # ===================================
+  # PRODUCTION DEPLOYMENT (Manual Approval)
+  # ===================================
+  deploy-production:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: [deploy-staging]
+    if: github.ref == 'refs/heads/main'
+    environment: production
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup kubectl
+      uses: azure/setup-kubectl@v3
+      with:
+        version: 'v1.28.0'
+        
+    - name: Configure kubeconfig
+      run: |
+        echo "${{ secrets.KUBE_CONFIG_PRODUCTION }}" | base64 -d > kubeconfig
+        export KUBECONFIG=kubeconfig
+        
+    - name: Pre-deployment validation
+      run: |
+        echo "🔍 Pre-deployment validation..."
+        python ci-cd/scripts/pre-deployment-check.py --env production
+        
+    - name: Deploy to production (Canary)
+      run: |
+        echo "🚀 Starting canary deployment..."
+        kubectl apply -k k8s/overlays/production
+        
+        # Deploy canary version (10% traffic)
+        kubectl patch deployment triton-inference-server \
+          -p '{"spec":{"template":{"spec":{"containers":[{"name":"triton-inference-server","image":"'${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}'"}]}}}}' \
+          -n ${{ env.KUBE_NAMESPACE }}
+          
+    - name: Monitor canary deployment
+      run: |
+        echo "📊 Monitoring canary deployment..."
+        sleep 300  # Wait 5 minutes
+        python ci-cd/scripts/canary-monitor.py \
+          --namespace ${{ env.KUBE_NAMESPACE }} \
+          --duration 300
+          
+    - name: Full production rollout
+      run: |
+        echo "🎯 Proceeding with full production rollout..."
+        kubectl rollout status deployment/triton-inference-server \
+          -n ${{ env.KUBE_NAMESPACE }} --timeout=600s
+          
+    - name: Post-deployment validation
+      run: |
+        echo "✅ Post-deployment validation..."
+        python ci-cd/scripts/post-deployment-validation.py --env production
+        
+    - name: Update monitoring dashboards
+      run: |
+        echo "📊 Updating monitoring dashboards..."
+        python ci-cd/scripts/update-dashboards.py --version ${{ github.sha }}
+
+  # ===================================
+  # NOTIFICATION & CLEANUP
+  # ===================================
+  notify:
+    name: Notify Team
+    runs-on: ubuntu-latest
+    needs: [deploy-production]
+    if: always()
+    
+    steps:
+    - name: Notify Slack
+      uses: 8398a7/action-slack@v3
+      with:
+        status: ${{ job.status }}
+        channel: '#ml-ops'
+        text: |
+          Production ML Pipeline: ${{ job.status }}
+          Commit: ${{ github.sha }}
+          Branch: ${{ github.ref }}
+          Models deployed: content-classifier, safety-detector, ensemble
+      env:
+        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK }}
+        
+    - name: Create deployment record
+      run: |
+        echo "📝 Creating deployment record..."
+        python ci-cd/scripts/create-deployment-record.py \
+          --version ${{ github.sha }} \
+          --status ${{ job.status }} \
+          --environment production
