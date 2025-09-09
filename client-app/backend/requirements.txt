@@ -1,0 +1,22 @@
+# Production ML Platform Backend Dependencies
+
+# Core Framework
+fastapi>=0.100.0
+uvicorn[standard]>=0.20.0
+
+# Triton Client (simplified for compatibility)
+tritonclient[http]>=2.30.0
+
+# Image Processing (latest compatible versions)
+Pillow>=10.0.0
+numpy>=1.21.0
+
+# File Upload Support
+python-multipart>=0.0.6
+
+# HTTP Client (for health checks)
+httpx>=0.24.0
+
+# Development Dependencies (optional)
+pytest>=7.0.0
+black>=23.0.0
