@@ -70,32 +70,61 @@ def simulate_ml_inference(image: Image.Image) -> Dict[str, Any]:
     
     # Simulate different decisions based on image characteristics
     pixel_variance = np.var(np.array(image))
+    image_hash = hash(str(np.array(image).tobytes())) % 100
     
-    if pixel_variance < 1000:
+    # Create more diverse scenarios based on image properties
+    if pixel_variance < 500:
+        decision = "REJECTED"
+        confidence = 0.89
+        category = "low_quality_image"
+        safety = "Risk: HIGH, Safe: False"
+        safety_reason = "Image quality too low for reliable analysis"
+    elif pixel_variance < 1000:
         decision = "REVIEW_REQUIRED"
         confidence = 0.65
-        category = "low_contrast_image"
+        category = "unclear_content"
+        safety = "Risk: MEDIUM, Safe: Unknown"
+        safety_reason = "Requires human review"
+    elif image_hash < 10:  # 10% chance of flagged content
+        decision = "FLAGGED"
+        confidence = 0.94
+        category = "potentially_inappropriate"
+        safety = "Risk: HIGH, Safe: False"
+        safety_reason = "Content flagged by safety classifier"
+    elif image_hash < 20:  # 10% chance of text-heavy content
+        decision = "APPROVED"
+        confidence = 0.85
+        category = "text_heavy_image"
         safety = "Risk: LOW, Safe: True"
-    elif pixel_variance > 5000:
+        safety_reason = "Text content detected and approved"
+        extracted_texts = ["DEMO TEXT", "Sample content", "Image contains readable text"]
+    elif pixel_variance > 4000:
         decision = "APPROVED"  
         confidence = 0.92
         category = "high_detail_image"
         safety = "Risk: LOW, Safe: True"
+        safety_reason = "High-quality detailed image"
     else:
         decision = "APPROVED"
         confidence = 0.78
         category = "standard_image"
         safety = "Risk: LOW, Safe: True"
+        safety_reason = "Standard content approved"
     
-    # Simulate extracted text (random for demo)
-    extracted_texts = ["Sample text"] if np.random.random() > 0.7 else []
+    # Simulate extracted text based on category
+    if 'extracted_texts' not in locals():
+        extracted_texts = ["Sample text"] if np.random.random() > 0.8 else []
     
-    # Create metadata
+    # Create metadata based on decision
+    safety_result = "REJECT" if decision in ["REJECTED", "FLAGGED"] else "REVIEW" if decision == "REVIEW_REQUIRED" else "APPROVE"
+    content_result = "REJECT" if decision == "REJECTED" else "REVIEW" if decision in ["REVIEW_REQUIRED", "FLAGGED"] else "APPROVE"
+    text_result = "APPROVE" if not extracted_texts or decision != "FLAGGED" else "REVIEW"
+    
     metadata = {
         "decision_factors": {
-            "safety_check": {"result": "APPROVE", "confidence": confidence, "reason": "Content appears safe"},
-            "content_check": {"result": "APPROVE", "confidence": confidence, "reason": "Appropriate content category"},  
-            "text_check": {"result": "APPROVE", "confidence": 1.0, "reason": "No concerning text detected"}
+            "safety_check": {"result": safety_result, "confidence": confidence, "reason": safety_reason},
+            "content_check": {"result": content_result, "confidence": confidence, "reason": f"Category: {category}"},  
+            "text_check": {"result": text_result, "confidence": 0.95, "reason": f"Text analysis: {len(extracted_texts)} items found"}
         },
         "model_version": "demo_v2.1.0",
         "image_properties": {

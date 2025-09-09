@@ -53,10 +53,13 @@ class TritonClient:
     def __init__(self, url: str):
         self.url = url
         self.client = None
-        self._connect()
+        self._connected = False
     
     def _connect(self):
         """Establish connection to Triton server."""
+        if self._connected:
+            return
+            
         try:
             self.client = httpclient.InferenceServerClient(
                 url=self.url,
@@ -69,15 +72,18 @@ class TritonClient:
             if not self.client.is_server_ready():
                 raise ConnectionError("Triton server is not ready")
                 
+            self._connected = True
             logger.info(f"Connected to Triton server at {self.url}")
             
         except Exception as e:
             logger.error(f"Failed to connect to Triton server: {e}")
+            self._connected = False
             raise
     
     def is_model_ready(self, model_name: str) -> bool:
         """Check if specific model is ready."""
         try:
+            self._connect()
             return self.client.is_model_ready(model_name)
         except Exception as e:
             logger.error(f"Error checking model readiness: {e}")
@@ -86,6 +92,7 @@ class TritonClient:
     def get_model_metadata(self, model_name: str) -> Dict:
         """Get model metadata."""
         try:
+            self._connect()
             metadata = self.client.get_model_metadata(model_name)
             return {
                 "name": metadata.name,
@@ -100,7 +107,7 @@ class TritonClient:
             logger.error(f"Error getting model metadata: {e}")
             return {}
 
-# Initialize Triton client
+# Initialize Triton client (lazy connection)
 triton_client = TritonClient(TRITON_URL)
 
 def preprocess_image(image: Image.Image) -> np.ndarray:
@@ -198,6 +205,7 @@ async def health_check():
     
     try:
         # Check Triton server
+        triton_client._connect()
         if triton_client.client.is_server_ready():
             health_status["triton_server"] = "healthy"
             
