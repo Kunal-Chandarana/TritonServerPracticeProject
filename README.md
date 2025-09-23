@@ -272,6 +272,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ---
 
-**This project demonstrates enterprise-grade patterns that you can be applied to real-world ML deployments.
+**This project demonstrates enterprise-grade patterns that you can be applied to real-world ML deployments.**
 
 For questions or support, please open an issue or reach out to the maintainers.
